@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据包可视化生成器 1.21.1</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Minecraft 数据包可视化生成器</h1>
+        </header>
+        
+        <nav>
+            <ul>
+                <li class="nav-item active" data-section="home">首页</li>
+                <li class="nav-item" data-section="functions">函数编辑</li>
+                <li class="nav-item" data-section="advancements">进度系统</li>
+                <li class="nav-item" data-section="loot-tables">战利品表</li>
+                <li class="nav-item" data-section="recipes">配方</li>
+                <li class="nav-item" data-section="export">导出</li>
+            </ul>
+        </nav>
+        
+        <main>
+            <!-- 首页 -->
+            <section id="home" class="section active">
+                <h2>欢迎使用数据包生成器</h2>
+                <div class="welcome-content">
+                    <div class="quick-start">
+                        <h3>快速开始</h3>
+                        <div class="form-group">
+                            <label>数据包名称</label>
+                            <input type="text" id="pack-name" placeholder="例如：我的第一个数据包">
+                        </div>
+                        <div class="form-group">
+                            <label>描述</label>
+                            <textarea id="pack-description" placeholder="简单描述你的数据包功能"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>命名空间（英文，无空格）</label>
+                            <input type="text" id="namespace" placeholder="例如：my_datapack">
+                        </div>
+                        <button id="create-new-pack" class="btn-primary">创建新数据包</button>
+                    </div>
+                    <div class="quick-start" style="margin-top:20px;">
+                        <h3>数据包图标（pack.png）</h3>
+                        <div class="form-group">
+                            <label>上传数据包显示图片</label>
+                            <div class="image-upload-wrapper">
+                                <div class="image-upload-area" id="pack-image-upload-area">
+                                    <div class="image-upload-placeholder" id="pack-image-placeholder">
+                                        <span class="upload-icon">🖼</span>
+                                        <span>点击上传图片（自动保存为 pack.png）</span>
+                                        <span class="upload-hint">仅支持 PNG 格式</span>
+                                    </div>
+                                    <div class="image-preview-container" id="pack-image-preview" style="display:none;">
+                                        <img id="pack-image-img" alt="pack.png 预览">
+                                        <button class="image-remove-btn" id="pack-image-remove" title="移除图片">✕</button>
+                                    </div>
+                                    <input type="file" id="pack-image-input" accept=".png,image/png" style="display:none;">
+                                </div>
+                            </div>
+                            <span class="field-hint">上传的图片将作为数据包图标（pack.png）包含在导出的数据包中，建议尺寸 64×64 或 128×128</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 函数编辑 -->
+            <section id="functions" class="section">
+                <h2>函数编辑器</h2>
+                <p class="section-desc">创建自定义函数，选择触发方式、触发对象和触发事件</p>
+                
+                <div class="function-manager">
+                    <div class="function-sidebar">
+                        <h3>函数列表</h3>
+                        <ul id="function-list">
+                            <!-- 动态生成 -->
+                        </ul>
+                        <button id="add-function" class="btn-add">+ 添加函数</button>
+                    </div>
+                    
+                    <div class="function-editor-panel">
+                        <h3>函数编辑器</h3>
+                        <div class="form-group">
+                            <label>函数ID（英文，修改后需手动更新列表）</label>
+                            <input type="text" id="func-id" placeholder="例如：my_custom_function">
+                        </div>
+                        <div class="form-group">
+                            <label>函数名称</label>
+                            <input type="text" id="func-name" placeholder="例如：我的自定义函数">
+                        </div>
+                        
+                        <!-- 触发方式 -->
+                        <div class="form-group">
+                            <label>触发方式</label>
+                            <select id="func-trigger">
+                                <option value="manual">手动调用（通过 /function 命令或其他函数调用）</option>
+                                <option value="load">数据包加载时触发（load）</option>
+                                <option value="tick">每游戏刻循环执行（tick）</option>
+                                <option value="interval">每N秒循环触发</option>
+                                <option value="event">事件触发（如跳跃、受伤、死亡等）</option>
+                                <option value="health_check">血量检测触发</option>
+                                <option value="area_detect">区域检测触发</option>
+                                <option value="leaderboard">榜单创建</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 触发方式 - 间隔触发 -->
+                        <div class="func-condition-group" data-triggers="interval">
+                            <div class="form-group">
+                                <label>触发间隔（秒）</label>
+                                <input type="number" id="func-interval" value="5" min="1" step="0.5">
+                                <span class="field-hint">每隔多少秒自动触发一次此函数</span>
+                            </div>
+                            <div class="form-group">
+                                <label>显示倒计时</label>
+                                <select id="func-interval-actionbar">
+                                    <option value="true">是</option>
+                                    <option value="false">否</option>
+                                </select>
+                                <span class="field-hint">在快捷栏上方显示剩余时间</span>
+                            </div>
+                            <div class="interval-actionbar-group">
+                                <div class="form-group interval-color-group">
+                                <div class="color-section-toggle" id="color-section-toggle">
+                                    <span class="arrow collapsed">▼</span>
+                                    <span>颜色设置</span>
+                                </div>
+                                <div class="color-custom-panel" id="color-custom-panel" style="display:none;">
+                                    <div class="color-presets" id="color-presets">
+                                        <div class="color-preset" data-text="#0BFF0A" data-digit="#FF0000" style="background:#0BFF0A;border-color:#0BFF0A;" title="绿色 (默认)"></div>
+                                        <div class="color-preset" data-text="#FF0000" data-digit="#FF6600" style="background:#FF0000;border-color:#FF0000;" title="红色"></div>
+                                        <div class="color-preset" data-text="#FFAA00" data-digit="#FF5500" style="background:#FFAA00;border-color:#FFAA00;" title="金色"></div>
+                                        <div class="color-preset" data-text="#55FFFF" data-digit="#00AAAA" style="background:#55FFFF;border-color:#55FFFF;" title="青色"></div>
+                                        <div class="color-preset" data-text="#FFFF55" data-digit="#FFAA00" style="background:#FFFF55;border-color:#FFFF55;" title="黄色"></div>
+                                        <div class="color-preset" data-text="#AA00FF" data-digit="#FF55FF" style="background:#AA00FF;border-color:#AA00FF;" title="紫色"></div>
+                                        <div class="color-preset" data-text="#FFFFFF" data-digit="#FF0000" style="background:#FFFFFF;border-color:#FFFFFF;" title="白色"></div>
+                                        <div class="color-preset" data-text="#FF5555" data-digit="#FFAA00" style="background:#FF5555;border-color:#FF5555;" title="粉色"></div>
+                                    </div>
+                                    <div class="color-row">
+                                        <label>Time颜色</label>
+                                        <input type="color" id="func-interval-color" value="#0BFF0A">
+                                        <input type="text" id="func-interval-color-text" value="#0BFF0A" placeholder="十六进制颜色代码">
+                                    </div>
+                                    <div class="color-row">
+                                        <label>数字颜色</label>
+                                        <input type="color" id="func-interval-digit-color" value="#FF0000">
+                                        <input type="text" id="func-interval-digit-color-text" value="#FF0000" placeholder="十六进制颜色代码">
+                                    </div>
+                                    <div class="form-group">
+                                    <label>Time文字</label>
+                                    <input type="text" id="func-interval-text" value="Time" placeholder="自定义Time文字，如: 倒计时">
+                                    <span class="field-hint">倒计时前显示的Time文字</span>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <!-- 触发方式 - 区域检测触发 -->
+                        <div class="func-condition-group" data-triggers="area_detect">
+                            <div class="form-group">
+                                <label>检测模式</label>
+                                <select id="func-area-mode">
+                                    <option value="enter">进入区域时触发</option>
+                                    <option value="leave">离开区域时触发</option>
+                                    <option value="inside">在区域内每刻触发</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>区域名称（英文）</label>
+                                <input type="text" id="func-area-name" placeholder="例如: spawn_area" value="spawn_area">
+                                <span class="field-hint">用于生成区域检测函数</span>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group third">
+                                    <label>起点 X</label>
+                                    <input type="number" id="func-area-x1" value="0">
+                                </div>
+                                <div class="form-group third">
+                                    <label>起点 Y</label>
+                                    <input type="number" id="func-area-y1" value="-64">
+                                </div>
+                                <div class="form-group third">
+                                    <label>起点 Z</label>
+                                    <input type="number" id="func-area-z1" value="0">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group third">
+                                    <label>终点 X</label>
+                                    <input type="number" id="func-area-x2" value="100">
+                                </div>
+                                <div class="form-group third">
+                                    <label>终点 Y</label>
+                                    <input type="number" id="func-area-y2" value="320">
+                                </div>
+                                <div class="form-group third">
+                                    <label>终点 Z</label>
+                                    <input type="number" id="func-area-z2" value="100">
+                                </div>
+                            </div>
+                            <span class="field-hint">使用长方体区域定义，玩家进入/离开/在区域中时触发</span>
+                        </div>
+                        
+                        <!-- 触发方式 - 血量检测触发 -->
+                        <div class="func-condition-group" data-triggers="health_check">
+                            <div class="form-group">
+                                <label>血量条件</label>
+                                <select id="func-health-condition">
+                                    <option value="below">低于</option>
+                                    <option value="above">高于</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>阈值（血量值）</label>
+                                <input type="number" id="func-health-threshold" value="10" min="1">
+                                <span class="field-hint">玩家的血量值</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发方式 - 事件触发 -->
+                        <div class="func-condition-group" data-triggers="event">
+                            <div class="form-group">
+                                <label>选择触发事件</label>
+                                <select id="func-event-type">
+                                    <optgroup label="—— 玩家行为 ——">
+                                        <option value="jump">跳跃</option>
+                                        <option value="sneak">潜行</option>
+                                        <option value="sleep">睡觉</option>
+                                        <option value="fish">钓鱼</option>
+                                        <option value="open_chest">打开箱子</option>
+                                        <option value="play_record">播放唱片</option>
+                                    </optgroup>
+                                    <optgroup label="—— 战斗相关 ——">
+                                        <option value="hurt">受伤</option>
+                                        <option value="death">死亡</option>
+                                        <option value="kill_entity">击杀生物</option>
+                                        <option value="player_hurt_entity">攻击生物</option>
+                                        <option value="killed_by_crossbow">被弩箭射杀</option>
+                                        <option value="shot_crossbow">用弩射击</option>
+                                        <option value="target_hit">射中标靶</option>
+                                        <option value="channeled_lightning">引雷</option>
+                                        <option value="used_totem">触发不死图腾</option>
+                                        <option value="kill_mob_near_sculk_catalyst">在幽匿催发体旁击杀生物</option>
+                                        <option value="summoned_entity">召唤实体（如铁傀儡）</option>
+                                        <option value="started_riding">骑乘实体</option>
+                                        <option value="ride_entity_in_lava">骑乘在熔岩上的实体</option>
+                                    </optgroup>
+                                    <optgroup label="—— 物品相关 ——">
+                                        <option value="use_item">物品栏变化（捡起/丢弃/移动物品）</option>
+                                        <option value="consume_item">消耗物品</option>
+                                        <option value="enchant_item">附魔物品</option>
+                                        <option value="brew_potion">酿造药水</option>
+                                        <option value="item_durability_changed">物品损耗</option>
+                                        <option value="filled_bucket">填充桶</option>
+                                        <option value="recipe_crafted">合成</option>
+                                        <option value="using_item">持续使用物品（拉弓/持盾等）</option>
+                                        <option value="crafter_recipe_crafted">合成器合成</option>
+                                        <option value="player_generates_container_loot">打开战利品箱</option>
+                                        <option value="thrown_item_picked_up_by_player">捡起实体扔出物品</option>
+                                        <option value="thrown_item_picked_up_by_entity">实体捡起你扔出物品</option>
+                                    </optgroup>
+                                    <optgroup label="—— 方块相关 ——">
+                                        <option value="place_block">放置方块</option>
+                                        <option value="any_block_use">与方块交互</option>
+                                        <option value="default_block_use">空手交互方块</option>
+                                        <option value="item_used_on_block">手持物品交互方块</option>
+                                        <option value="enter_block">碰到方块</option>
+                                        <option value="bee_nest_destroyed">破坏蜂巢</option>
+                                        <option value="construct_beacon">激活信标</option>
+                                        <option value="slide_down_block">滑下蜂蜜块</option>
+                                    </optgroup>
+                                    <optgroup label="—— 生物交互 ——">
+                                        <option value="trade_villager">与村民交易</option>
+                                        <option value="tame_animal">驯服动物</option>
+                                        <option value="bred_animals">繁殖动物</option>
+                                        <option value="cured_zombie_villager">治愈僵尸村民</option>
+                                        <option value="player_interacted_with_entity">实体交互</option>
+                                        <option value="allay_drop_item_on_block">悦灵投掷物品</option>
+                                    </optgroup>
+                                    <optgroup label="—— 游戏机制 ——">
+                                        <option value="dimension_change">改变维度</option>
+                                        <option value="effects_changed">状态效果变化</option>
+                                        <option value="fall_from_height">高处摔落</option>
+                                        <option value="fall_after_explosion">爆炸后摔落</option>
+                                        <option value="levitation">飘浮</option>
+                                        <option value="lightning_strike">闪电</option>
+                                        <option value="nether_travel">下界返回主世界</option>
+                                        <option value="avoid_vibration">潜行避免振动</option>
+                                        <option value="hero_of_the_village">村庄英雄</option>
+                                        <option value="voluntary_exile">触发袭击</option>
+                                        <option value="raid_win">袭击胜利</option>
+                                        <option value="used_ender_eye">使用末影之眼</option>
+                                        <option value="interact_with_anvil">使用铁砧</option>
+                                    </optgroup>
+                                </select>
+                                <span class="field-hint">玩家触发该事件时自动执行此函数</span>
+                                <!-- 触发器Wiki介绍折叠面板 -->
+                                <div id="func-event-wiki-panel" class="event-wiki-panel" style="margin-top:8px;display:none;">
+                                    <div class="event-wiki-header" id="func-event-wiki-toggle" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;padding:6px 8px;background:#1a1a2e;border:1px solid #444;border-radius:4px;color:#f0c040;font-size:13px;">
+                                        <span id="event-wiki-arrow" style="transition:transform 0.2s;display:inline-block;">▶</span>
+                                        <span>查看触发器Wiki介绍</span>
+                                    </div>
+                                    <div id="func-event-wiki-content" style="display:none;padding:10px 12px;background:#16213e;border:1px solid #444;border-top:none;border-radius:0 0 4px 4px;color:#ccc;font-size:13px;line-height:1.6;"></div>
+                                </div>
+                            </div>
+                            <!-- 事件额外条件字段（根据所选事件动态显示） -->
+                            <div id="func-event-extra-fields" class="event-extra-fields" style="margin-top:12px;padding:10px;border:1px solid #444;border-radius:4px;background:#1a1a2e;display:none;">
+                                <div id="func-event-extra-toggle" style="color:#f0c040;font-size:13px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
+                                    <span id="func-event-extra-arrow" style="transition:transform 0.2s;display:inline-block;">▶</span>
+                                    <span>事件条件配置</span>
+                                </div>
+                                <div id="func-event-extra-fields-container" style="display:none;margin-top:8px;"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发方式 - 榜单创建 -->
+                        <div class="func-condition-group" data-triggers="leaderboard">
+                            <div class="form-group">
+                                <label>预设榜单</label>
+                                <select id="func-leaderboard-preset" class="block-select">
+                                        <optgroup label="—— 移动距离类 ——">
+                                            <option value="walk_distance">行走距离榜</option>
+                                            <option value="sprint_distance">疾跑距离榜</option>
+                                            <option value="swim_distance">游泳距离榜</option>
+                                            <option value="fly_distance">飞行距离榜</option>
+                                            <option value="aviate_distance">鞘翅飞行榜</option>
+                                            <option value="crouch_distance">潜行距离榜</option>
+                                            <option value="climb_distance">攀爬距离榜</option>
+                                            <option value="boat_distance">划船距离榜</option>
+                                            <option value="horse_distance">骑马距离榜</option>
+                                            <option value="minecart_distance">矿车距离榜</option>
+                                            <option value="pig_distance">骑猪距离榜</option>
+                                            <option value="strider_distance">骑炽足兽榜</option>
+                                            <option value="walk_on_water_distance">水面行走榜</option>
+                                            <option value="walk_under_water_distance">水下行走榜</option>
+                                            <option value="fall_distance">坠落距离榜</option>
+                                        </optgroup>
+                                        <optgroup label="—— 移动榜 ——">
+                                            <option value="plane_movement">移动榜</option>
+                                        </optgroup>
+                                        <optgroup label="—— 战斗击杀类 ——">
+                                            <option value="mob_kills">击杀生物榜</option>
+                                            <option value="player_kills">玩家击杀榜</option>
+                                            <option value="damage_taken">承受伤害榜</option>
+                                            <option value="damage_dealt">造成伤害榜</option>
+                                            <option value="deaths">死亡榜</option>
+                                            <option value="target_hit">击中标靶榜</option>
+                                        </optgroup>
+                                        <optgroup label="—— 活动交互类 ——">
+                                            <option value="play_time">活跃时间榜</option>
+                                            <option value="jumps">跳跃榜</option>
+                                            <option value="fish_caught">钓鱼榜</option>
+                                            <option value="traded_with_villager">村民交易榜</option>
+                                            <option value="enchant_item">附魔榜</option>
+                                            <option value="animals_bred">繁殖动物榜</option>
+                                            <option value="sleep_in_bed">入眠榜</option>
+                                            <option value="bell_ring">鸣钟榜</option>
+                                            <option value="play_record">播放唱片榜</option>
+                                            <option value="open_chest">打开箱子榜</option>
+                                            <option value="raid_win">袭击胜利榜</option>
+                                            <option value="sneak_time">潜行时间榜</option>
+                                            <option value="drop_count">丢弃物品榜</option>
+                                            <option value="leave_game">退出游戏榜</option>
+                                        </optgroup>
+                                        <optgroup label="—— 基础准则 ——">
+                                            <option value="dummy">虚拟型（dummy）</option>
+                                            <option value="trigger">触发器（trigger）</option>
+                                            <option value="deathCount">死亡次数（deathCount）</option>
+                                            <option value="playerKillCount">击杀玩家数（playerKillCount）</option>
+                                            <option value="totalKillCount">击杀生物数（totalKillCount）</option>
+                                        </optgroup>
+                                        <optgroup label="—— 只读准则 ——">
+                                            <option value="health">生命值（health）</option>
+                                            <option value="xp">经验值（xp）</option>
+                                            <option value="level">等级（level）</option>
+                                            <option value="food">饥饿值（food）</option>
+                                            <option value="armor">护甲值（armor）</option>
+                                        </optgroup>
+                                        <optgroup label="—— 自定义 ——">
+                                            <option value="__custom__">✏️ 自定义准则</option>
+                                        </optgroup>
+                                    </select>
+                                <span class="field-hint">选择一个预设榜单，系统自动填充准则和名称颜色</span>
+                            </div>
+                            <div class="form-group">
+                                <label>榜单名称</label>
+                                <input type="text" id="func-leaderboard-displayname" value="我的榜单" placeholder="显示在侧边栏上的名称">
+                                <span class="field-hint">显示在侧边栏顶部的榜单名称，可根据需要修改</span>
+                            </div>
+                            <div class="form-group" id="func-leaderboard-custom-criteria-group" style="display:none;">
+                                <label>自定义准则</label>
+                                <input type="text" id="func-leaderboard-custom-criteria-input" placeholder="例如: minecraft.custom:minecraft.jump">
+                                <span class="field-hint">使用统计ID作为准则，格式: minecraft.custom:minecraft.&lt;统计名&gt;</span>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group half">
+                                    <label>显示位置</label>
+                                    <select id="func-leaderboard-slot">
+                                        <option value="sidebar">侧边栏（sidebar）</option>
+                                        <option value="list">玩家列表（list）</option>
+                                        <option value="below_name">名称下方（below_name）</option>
+                                    </select>
+                                </div>
+                                <div class="form-group half" id="func-leaderboard-color-group">
+                                    <label>榜单名称颜色</label>
+                                    <select id="func-leaderboard-color">
+                                        <option value="white">白色</option>
+                                        <option value="orange">橙色</option>
+                                        <option value="magenta">品红色</option>
+                                        <option value="light_blue">淡蓝色</option>
+                                        <option value="yellow">黄色</option>
+                                        <option value="lime">黄绿色</option>
+                                        <option value="pink">粉色</option>
+                                        <option value="gray">灰色</option>
+                                        <option value="silver">淡灰色</option>
+                                        <option value="cyan">青色</option>
+                                        <option value="purple">紫色</option>
+                                        <option value="blue">蓝色</option>
+                                        <option value="brown">棕色</option>
+                                        <option value="green">绿色</option>
+                                        <option value="red">红色</option>
+                                        <option value="black">黑色</option>
+                                    </select>
+                                    <span class="field-hint">选择显示位置为"侧边栏"时，榜单名称将显示为此颜色</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发对象 -->
+                        <div class="form-group">
+                            <label>触发对象</label>
+                            <select id="func-target">
+                                <option value="@a">所有玩家 (@a)</option>
+                                <option value="@p">最近玩家 (@p)</option>
+                                <option value="@r">随机玩家 (@r)</option>
+                                <option value="@s">执行者自己 (@s)</option>
+                                <option value="@e">所有实体 (@e)</option>
+                                <option value="custom">自定义选择器</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 自定义选择器 -->
+                        <div class="func-condition-group" data-triggers="custom_selector">
+                            <div class="form-group">
+                                <label>自定义目标选择器</label>
+                                <input type="text" id="func-custom-selector" placeholder="例如：@a[distance=..10,gamemode=survival]">
+                                <span class="field-hint">输入完整的目标选择器语法</span>
+                            </div>
+                        </div>
+                        
+                        <!-- ===== 动作配置（可视化） ===== -->
+                        <div class="action-config-section" style="margin-top:20px;border:1px solid #444;border-radius:6px;padding:12px;background:#1a1a2e;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                                <h4 style="margin:0;color:#e0e0e0;font-size:14px;">动作配置（可视化）</h4>
+                                <span class="field-hint">触发器触发时依次执行以下动作</span>
+                            </div>
+                            
+                            <div id="action-list" style="margin-bottom:10px;">
+                                <!-- 动作列表动态渲染 -->
+                            </div>
+                            
+                            <div class="add-action-bar" style="display:flex;gap:8px;align-items:center;">
+                                <select id="action-type-select" style="flex:1;padding:6px 8px;background:#16213e;color:#ccc;border:1px solid #555;border-radius:4px;">
+                                    <option value="send_message">发送消息</option>
+                                    <option value="spawn_mob">生成生物</option>
+                                    <option value="give_item">给予物品</option>
+                                    <option value="give_loot">给予战利品</option>
+                                    <option value="apply_effect">应用效果</option>
+                                    <option value="clear_inventory">清除背包</option>
+                                    <option value="random_teleport">随机传送</option>
+                                    <option value="set_block">放置方块</option>
+                                    <option value="playsound">播放声音</option>
+                                    <option value="xp_operation">经验操作</option>
+                                    <option value="random_call">随机调用函数</option>
+                                    <option value="custom_command">自定义命令</option>
+                                </select>
+                                <button id="add-action" type="button" style="padding:6px 16px;background:#2e7d32;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">+ 添加动作</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 命令编辑器（只读预览 + 可手动编辑） -->
+                        <div class="form-group" style="margin-top:15px;">
+                            <label>生成的函数命令（可手动修改）</label>
+                            <textarea id="function-content" placeholder="# 生成的命令将显示在这里
+# 你也可以手动修改"></textarea>
+                            <span class="field-hint">由上方动作配置自动生成，你也可以手动编辑</span>
+                        </div>
+                        
+                        <div class="function-actions">
+                            <button id="save-function" class="btn-save">保存函数</button>
+                            <button id="delete-function" class="btn-delete">删除函数</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 进度系统 -->
+            <section id="advancements" class="section">
+                <h2>进度系统编辑器</h2>
+                <p class="section-desc">创建自定义成就和进度系统</p>
+                
+                <div class="advancement-manager">
+                    <div class="advancement-list">
+                        <h3>进度列表</h3>
+                        <div class="adv-category-tabs" id="adv-tabs-container"></div>
+                        <ul id="advancement-list">
+                            <!-- 动态生成 -->
+                        </ul>
+                        <div class="adv-list-actions">
+                            <button id="add-advancement" class="btn-add">+ 添加进度</button>
+                            <button id="add-adv-tab" class="btn-add-tab" title="新增分类选项卡">+ 新增选项卡</button>
+                        </div>
+                    </div>
+                    
+                    <div class="advancement-editor">
+                        <h3>进度编辑器</h3>
+                        <div class="form-group">
+                            <label>进度ID（英文，修改后需手动更新列表）</label>
+                            <input type="text" id="adv-id" placeholder="例如：diamond_hunter">
+                        </div>
+                        <div class="form-group">
+                            <label>进度名称</label>
+                            <input type="text" id="adv-name" placeholder="例如：钻石猎人">
+                        </div>
+                        <div class="form-group">
+                            <label>标题</label>
+                            <input type="text" id="adv-title" placeholder="显示给玩家看的标题">
+                        </div>
+                        <div class="form-group">
+                            <label>描述</label>
+                            <textarea id="adv-description" placeholder="进度描述"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>图标物品</label>
+                            <div class="item-input-group">
+                                <input type="text" id="adv-icon" placeholder="例如：minecraft:diamond" readonly>
+                                <button class="item-select-btn" onclick="openItemSelectorForInput('adv-icon')">选择物品</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>触发条件</label>
+                            <select id="adv-trigger">
+                                <option value="inventory_changed">物品栏变化</option>
+                                <option value="player_killed_entity">击杀实体</option>
+                                <option value="entity_killed_player">被实体击杀</option>
+                                <option value="recipe_unlocked">解锁配方</option>
+                                <option value="recipe_crafted">合成物品</option>
+                                <option value="location">位置检测</option>
+                                <option value="slept_in_bed">睡觉</option>
+                                <option value="changed_dimension">改变维度</option>
+                                <option value="consume_item">使用/消耗物品</option>
+                                <option value="placed_block">放置方块</option>
+                                <option value="fishing_rod_hooked">钓鱼获得物品</option>
+                                <option value="cured_zombie_villager">治愈僵尸村民</option>
+                                <option value="tame_animal">驯服动物</option>
+                                <option value="brewed_potion">酿造药水</option>
+                                <option value="enchanted_item">附魔物品</option>
+                                <option value="filled_bucket">填充桶</option>
+                                <option value="villager_trade">与村民交易</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 触发条件 - 物品相关（物品栏变化、使用/消耗物品、钓鱼等） -->
+                        <div class="adv-condition-group" data-triggers="inventory_changed,consume_item,fishing_rod_hooked,enchanted_item,villager_trade">
+                            <div class="form-group">
+                                <label>触发物品</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="adv-trigger-item" placeholder="例如：minecraft:diamond" readonly>
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('adv-trigger-item')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-adv-trigger-item"></div>
+                                <span class="field-hint">选择触发此进度所需的物品（默认空=所有物品均可触发）</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发条件 - 实体相关（击杀实体、被实体击杀、驯服动物） -->
+                        <div class="adv-condition-group" data-triggers="player_killed_entity,entity_killed_player,tame_animal">
+                            <div class="form-group">
+                                <label>选择实体类型</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="adv-trigger-entity" placeholder="例如：minecraft:zombie" readonly>
+                                    <button class="item-select-btn" onclick="openEntitySelector()">选择实体</button>
+                                </div>
+                                <div class="item-preview" id="preview-adv-trigger-entity"></div>
+                                <span class="field-hint">选择触发此进度所需的实体类型（默认空=所有实体均可触发）</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发条件 - 方块相关（放置方块、挖掘方块） -->
+                        <div class="adv-condition-group" data-triggers="placed_block">
+                            <div class="form-group">
+                                <label>选择方块</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="adv-trigger-block" placeholder="例如：minecraft:dirt" readonly>
+                                    <button class="item-select-btn" onclick="openBlockSelector()">选择方块</button>
+                                </div>
+                                <div class="item-preview" id="preview-adv-trigger-block"></div>
+                                <span class="field-hint">选择触发此进度所需的方块（默认空=所有方块均可触发）</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发条件 - 桶填充（只显示桶类物品） -->
+                        <div class="adv-condition-group" data-triggers="filled_bucket">
+                            <div class="form-group">
+                                <label>选择桶类型</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="adv-trigger-bucket" placeholder="例如：minecraft:water_bucket" readonly>
+                                    <button class="item-select-btn" onclick="openBucketSelector()">选择桶</button>
+                                </div>
+                                <div class="item-preview" id="preview-adv-trigger-bucket"></div>
+                                <span class="field-hint">选择填充桶时所用的桶（默认空=所有桶均可触发）</span>
+                            </div>
+                        </div>
+
+                        <!-- 触发条件 - 配方解锁/合成 -->
+                        <div class="adv-condition-group" data-triggers="recipe_unlocked,recipe_crafted">
+                            <div class="form-group">
+                                <label>选择配方</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="adv-trigger-recipe" placeholder="minecraft:diamond" readonly>
+                                    <button type="button" class="item-select-btn" id="adv-select-recipe-btn">选择配方</button>
+                                </div>
+                                <div id="adv-selected-recipes" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+                                <span class="field-hint">选择触发此进度所需的配方（可多选，满足任一即触发）</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发条件 - 位置检测 -->
+                        <div class="adv-condition-group" data-triggers="location">
+                            <div class="location-builder">
+                                <h4>位置条件设置</h4>
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label>生物群系</label>
+                                        <select id="adv-location-biome">
+                                            <option value="">不限</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label>结构</label>
+                                        <select id="adv-location-structure">
+                                            <option value="">不限</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label>维度</label>
+                                        <select id="adv-location-dimension">
+                                            <option value="">不限</option>
+                                            <option value="minecraft:overworld">主世界</option>
+                                            <option value="minecraft:the_nether">下界</option>
+                                            <option value="minecraft:the_end">末地</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label>&nbsp;</label>
+                                        <div class="checkbox-group">
+                                            <label class="checkbox-label">
+                                                <input type="checkbox" id="adv-location-use-position">
+                                                使用精确坐标
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="adv-location-position-group" style="display:none;">
+                                    <div class="form-row">
+                                        <div class="form-group third">
+                                            <label>X坐标</label>
+                                            <input type="number" id="adv-location-x" value="0" step="0.1">
+                                        </div>
+                                        <div class="form-group third">
+                                            <label>Y坐标</label>
+                                            <input type="number" id="adv-location-y" value="0" step="0.1">
+                                        </div>
+                                        <div class="form-group third">
+                                            <label>Z坐标</label>
+                                            <input type="number" id="adv-location-z" value="0" step="0.1">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>检测范围（方块）</label>
+                                        <input type="number" id="adv-location-range" value="1" min="0" step="0.1">
+                                        <span class="field-hint">玩家在目标位置周围多少格内触发</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 触发条件 - 改变维度 -->
+                        <div class="adv-condition-group" data-triggers="changed_dimension">
+                            <div class="form-group">
+                                <label>从维度</label>
+                                <select id="adv-dimension-from">
+                                    <option value="">不限</option>
+                                    <option value="minecraft:overworld">主世界</option>
+                                    <option value="minecraft:the_nether">下界</option>
+                                    <option value="minecraft:the_end">末地</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>到维度</label>
+                                <select id="adv-dimension-to">
+                                    <option value="">不限</option>
+                                    <option value="minecraft:overworld">主世界</option>
+                                    <option value="minecraft:the_nether">下界</option>
+                                    <option value="minecraft:the_end">末地</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+
+                        <div class="form-group">
+                            <label>父进度</label>
+                            <select id="adv-parent">
+                                <option value="">无（根进度）</option>
+                                <!-- 动态生成其他进度选项 -->
+                            </select>
+                            <span class="field-hint">选择父进度后，本进度会显示为子进度</span>
+                        </div>
+                        <div class="form-group">
+                            <label>奖励函数（可选）</label>
+                            <input type="text" id="adv-reward" placeholder="例如：namespace:reward_function">
+                            <span class="field-hint">玩家达成进度后执行的函数</span>
+                        </div>
+                        <div class="form-group">
+                            <label>在聊天栏广播</label>
+                            <select id="adv-broadcast">
+                                <option value="true">是</option>
+                                <option value="false">否</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>提示框样式</label>
+                            <select id="adv-frame">
+                                <option value="task">任务</option>
+                                <option value="challenge">挑战</option>
+                                <option value="goal">目标</option>
+                            </select>
+                        </div>
+                        <button id="save-advancement" class="btn-save">保存进度</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 战利品表 -->
+            <section id="loot-tables" class="section">
+                <h2>战利品表编辑器</h2>
+                <p class="section-desc">创建自定义掉落 - 选择"什么"掉落"什么"，简单直观，无需编写任何 JSON</p>
+                
+                <div class="loot-manager">
+                    <div class="loot-list">
+                        <h3>战利品表列表</h3>
+                        <ul id="loot-list">
+                            <!-- 动态生成 -->
+                        </ul>
+                        <button id="add-loot" class="btn-add">+ 添加战利品表</button>
+                    </div>
+                    
+                    <div class="loot-editor">
+                        <h3>战利品表编辑器</h3>
+                        
+                        <!-- 基本信息 -->
+                        <div class="form-group">
+                            <label>战利品表名称</label>
+                            <input type="text" id="loot-name" placeholder="例如：custom_drops">
+                            <span class="field-hint">英文，用作文件名，例：diamond_dirt</span>
+                        </div>
+                        
+                        <!-- 类型选择 -->
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label>掉落来源</label>
+                                <select id="loot-type">
+                                    <option value="block">挖掘方块时掉落</option>
+                                    <option value="entity">击杀实体时掉落</option>
+                                    <option value="chest">打开宝箱时生成</option>
+                                    <option value="gameplay">其他</option>
+                                    <option value="none">无触发条件（用于函数奖励等）</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 目标选择（根据类型动态切换） -->
+                        <div id="loot-target-section" class="loot-section-card">
+                            <div class="section-card-header">
+                                <span id="loot-target-title">选择目标方块</span>
+                                <span class="field-hint" id="loot-target-hint">选择后，破坏这些方块时会使用自定义掉落</span>
+                            </div>
+                            <div class="coexist-toggle">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="loot-coexist" checked>
+                                    <span>与原版掉落共存（勾选后自定义物品会额外掉落，原版物品不受影响）</span>
+                                </label>
+                            </div>
+                            <div class="target-tags-container" id="loot-target-tags">
+                                <span class="field-hint" style="padding:4px 0;display:inline-block;">暂无选择</span>
+                            </div>
+                            <div id="loot-target-blocks" style="display:block;">
+                                <button class="btn-add-mini" onclick="openBlockTargetSelector()">选择方块</button>
+                                <span class="field-hint">点击上方按钮从列表中选择方块，也可在弹窗中手动输入自定义方块ID</span>
+                            </div>
+                            <div id="loot-target-chest" style="display:none;">
+                                <button class="btn-add-mini" onclick="openChestTargetSelector()">选择结构宝箱</button>
+                                <span class="field-hint">点击上方按钮从列表中选择建筑/结构的战利品箱</span>
+                            </div>
+                            <div id="loot-target-entity" style="display:none;">
+                                <button class="btn-add-mini" onclick="openEntityTargetSelector()">选择实体</button>
+                                <span class="field-hint">点击上方按钮从列表中选择实体</span>
+                            </div>
+                            <div id="loot-target-gameplay" style="display:none;">
+                                <button class="btn-add-mini" onclick="openGameplayTargetSelector()">选择其他</button>
+                                <span class="field-hint">点击上方按钮从列表中选择其他设置（如钓鱼、村庄英雄等）</span>
+                            </div>
+                            <div id="loot-target-none" style="display:none;">
+                                <span class="field-hint" style="display:inline-block;padding:4px 0;">无触发条件的战利品表，适用于函数奖励、/loot 命令等手动调用场景</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 掉落物品列表（核心：简单直观的掉落配置） -->
+                        <div class="loot-section-card">
+                            <div class="section-card-header">
+                                <span>掉落物品列表</span>
+                                <button id="add-loot-drop" class="btn-add-mini">+ 添加掉落物品</button>
+                            </div>
+                            <div id="loot-drops-container">
+                                <div class="empty-hint" id="loot-drops-empty">暂无掉落物品，点击"添加掉落物品"开始添加</div>
+                            </div>
+                        </div>
+                        
+                        <button id="save-loot" class="btn-save">保存战利品表</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 配方 -->
+            <section id="recipes" class="section">
+                <h2>配方编辑器</h2>
+                <p class="section-desc">创建自定义合成配方</p>
+                
+                <div class="recipe-manager">
+                    <div class="recipe-list">
+                        <h3>配方列表</h3>
+                        <ul id="recipe-list">
+                            <!-- 动态生成 -->
+                        </ul>
+                        <button id="add-recipe" class="btn-add">+ 添加配方</button>
+                        <button id="manage-vanilla-recipes" class="btn-secondary" style="margin-top:8px;width:100%;">管理原版配方</button>
+                    </div>
+                    
+                    <div class="recipe-editor">
+                        <h3>配方编辑器</h3>
+                        <div class="form-group">
+                            <label>配方名称</label>
+                            <input type="text" id="recipe-name" placeholder="例如：diamond_sword_upgrade">
+                        </div>
+                        <div class="form-group">
+                            <label>配方分组（用于配方书合并显示）</label>
+                            <select id="recipe-group">
+                                <option value="">无分组</option>
+                                <option value="building">建筑 (building)</option>
+                                <option value="redstone">红石 (redstone)</option>
+                                <option value="equipment">装备 (equipment)</option>
+                                <option value="misc">杂项 (misc)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>配方分类（决定配方书标签栏）</label>
+                            <select id="recipe-category">
+                                <option value="misc">杂项 (misc)</option>
+                                <option value="building">建筑 (building)</option>
+                                <option value="redstone">红石 (redstone)</option>
+                                <option value="equipment">装备 (equipment)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>解锁方式</label>
+                            <select id="recipe-unlock-type">
+                                <option value="craft">首次合成后解锁</option>
+                                <option value="material">获得材料时自动解锁</option>
+                                <option value="immediate">进游戏直接解锁</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>解锁提示</label>
+                            <input type="checkbox" id="recipe-show-notification" checked>
+                            <span>配方解锁时显示提示</span>
+                        </div>
+                        <div class="form-group">
+                            <label>配方类型</label>
+                            <select id="recipe-type">
+                                <option value="crafting_shaped">有序合成（工作台）</option>
+                                <option value="crafting_shapeless">无序合成（工作台）</option>
+                                <option value="smelting">熔炼（熔炉）</option>
+                                <option value="blasting">高炉熔炼（高炉）</option>
+                                <option value="smoking">烟熏（烟熏炉）</option>
+                                <option value="campfire_cooking">篝火烹饪（篝火）</option>
+                                <option value="stonecutting">切石（切石机）</option>
+                                <option value="smithing_transform">锻造升级（锻造台）</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 有序/无序合成编辑器 -->
+                        <div id="crafting-recipe-editor">
+                            <h4>合成网格</h4>
+                            <div class="crafting-grid" id="crafting-grid">
+                                <div class="grid-row">
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="0,0" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="0,1" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="0,2" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                </div>
+                                <div class="grid-row">
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="1,0" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="1,1" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="1,2" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                </div>
+                                <div class="grid-row">
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="2,0" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="2,1" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                    <div class="grid-cell-wrapper">
+                                        <div class="grid-cell">
+                                            <input type="text" class="grid-cell-input" data-pos="2,2" placeholder="输入物品ID或点击选择">
+                                            <div class="grid-cell-preview"></div>
+                                        </div>
+                                        <button class="item-select-btn" onclick="openItemSelector(this)">选择</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="clear-grid" class="btn-cancel" style="margin-top: 10px;">清空网格</button>
+                        </div>
+                        
+                        <!-- 熔炉类配方编辑器 -->
+                        <div id="smelting-recipe-editor" style="display: none;">
+                            <h4>熔炼配方</h4>
+                            <div class="form-group">
+                                <label>输入物品</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="smelting-input" placeholder="例如：minecraft:iron_ore">
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('smelting-input')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-smelting-input"></div>
+                            </div>
+                            <div class="form-group">
+                                <label>经验值（可选）</label>
+                                <input type="number" id="smelting-xp" value="0" min="0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>烹饪时间（刻，可选，默认200）</label>
+                                <input type="number" id="smelting-time" value="200" min="1">
+                            </div>
+                        </div>
+                        
+                        <!-- 切石机配方编辑器 -->
+                        <div id="stonecutting-recipe-editor" style="display: none;">
+                            <h4>切石配方</h4>
+                            <div class="form-group">
+                                <label>输入物品</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="stonecutting-input" placeholder="例如：minecraft:stone">
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('stonecutting-input')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-stonecutting-input"></div>
+                            </div>
+                            <div class="form-group">
+                                <label>输出数量</label>
+                                <input type="number" id="stonecutting-count" value="1" min="1">
+                            </div>
+                        </div>
+                        
+                        <!-- 锻造台配方编辑器 -->
+                        <div id="smithing-recipe-editor" style="display: none;">
+                            <h4>锻造升级配方</h4>
+                            <div class="form-group">
+                                <label>模板物品（如：下界合金升级模板）</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="smithing-template" placeholder="例如：minecraft:netherite_upgrade_smithing_template">
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('smithing-template')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-smithing-template"></div>
+                            </div>
+                            <div class="form-group">
+                                <label>基础物品（如：钻石剑）</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="smithing-base" placeholder="例如：minecraft:diamond_sword">
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('smithing-base')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-smithing-base"></div>
+                            </div>
+                            <div class="form-group">
+                                <label>附加物品（如：下界合金锭）</label>
+                                <div class="item-input-group">
+                                    <input type="text" id="smithing-addition" placeholder="例如：minecraft:netherite_ingot">
+                                    <button class="item-select-btn" onclick="openItemSelectorForInput('smithing-addition')">选择物品</button>
+                                </div>
+                                <div class="item-preview" id="preview-smithing-addition"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>输出物品</label>
+                            <div class="item-input-group">
+                                <input type="text" id="recipe-result" placeholder="例如：minecraft:diamond_sword">
+                                <button class="item-select-btn" onclick="openItemSelectorForInput('recipe-result')">选择物品</button>
+                            </div>
+                            <div class="item-preview" id="preview-recipe-result"></div>
+                        </div>
+                        <div class="form-group" id="result-count-group">
+                            <label>输出数量</label>
+                            <input type="number" id="recipe-count" value="1" min="1">
+                        </div>
+
+                        <div id="result-components-section" class="components-section" style="margin-top:16px;border:1px solid var(--mc-border);border-radius:var(--radius-sm);padding:12px;background:rgba(30,41,59,0.4);">
+                            <div class="components-header" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" onclick="toggleResultComponents()">
+                                <span id="components-toggle-icon" style="transition:transform 0.2s;display:inline-block;">▶</span>
+                                <h4 style="margin:0;font-size:14px;">输出物品自定义</h4>
+                                <span style="color:var(--mc-text-secondary);font-size:12px;">（自定义名称、介绍、附魔光效等）</span>
+                            </div>
+                            <div id="components-body" style="display:none;margin-top:12px;">
+                                <div class="form-group">
+                                    <label>自定义名称</label>
+                                    <div class="item-input-group">
+                                        <input type="text" id="result-custom-name" placeholder="例如：§6传说之剑" style="flex:1;">
+                                        <select id="result-name-color" style="width:120px;padding:8px;border:1px solid var(--mc-border);border-radius:var(--radius-sm);background:rgba(15,23,42,0.6);color:var(--mc-text);">
+                                            <option value="">默认颜色</option>
+                                            <option value="#FFAA00" style="color:#FFAA00;">金色 (#FFAA00)</option>
+                                            <option value="#FF5555" style="color:#FF5555;">红色 (#FF5555)</option>
+                                            <option value="#55FF55" style="color:#55FF55;">绿色 (#55FF55)</option>
+                                            <option value="#5555FF" style="color:#5555FF;">蓝色 (#5555FF)</option>
+                                            <option value="#55FFFF" style="color:#55FFFF;">青色 (#55FFFF)</option>
+                                            <option value="#FF55FF" style="color:#FF55FF;">粉色 (#FF55FF)</option>
+                                            <option value="#FFFF55" style="color:#FFFF55;">黄色 (#FFFF55)</option>
+                                            <option value="#AAAAAA" style="color:#AAAAAA;">灰色 (#AAAAAA)</option>
+                                            <option value="#FFFFFF" style="color:#FFFFFF;">白色 (#FFFFFF)</option>
+                                            <option value="#FF8800" style="color:#FF8800;">橙色 (#FF8800)</option>
+                                            <option value="#00DDFF" style="color:#00DDFF;">浅蓝 (#00DDFF)</option>
+                                            <option value="#FF1111" style="color:#FF1111;">深红 (#FF1111)</option>
+                                        </select>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:16px;margin-top:6px;">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="result-name-italic">
+                                            <span>斜体</span>
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="result-name-bold">
+                                            <span>粗体</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>介绍（Lore，每行一条）</label>
+                                    <textarea id="result-lore" placeholder="每行输入一条介绍文本&#10;例如：&#10;一把传说中的武器&#10;拥有强大的力量" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--mc-border);border-radius:var(--radius-sm);background:rgba(15,23,42,0.6);color:var(--mc-text);resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>自定义数据（Custom Data）</label>
+                                    <input type="text" id="result-custom-data" placeholder="例如：{my_custom_data:1b}" style="width:100%;">
+                                    <span class="field-hint">用于给物品添加自定义NBT标签，可在其他配方或函数中识别</span>
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="result-glint-override">
+                                        <span>附魔光效覆盖（Enchantment Glint Override）</span>
+                                    </label>
+                                    <span class="field-hint">勾选后物品会像附魔物品一样发光，即使没有附魔</span>
+                                </div>
+                                <div class="form-group" style="border-top:1px solid var(--mc-border);padding-top:12px;margin-top:12px;">
+                                    <label style="font-weight:600;color:#f59e0b;">自定义附魔</label>
+                                    <span class="field-hint">为合成输出的物品添加指定的附魔，不受原版限制，可随意搭配</span>
+                                    <div style="margin-top:8px;">
+                                        <div id="result-enchant-tags" class="custom-enchant-tags">
+                                            <span class="field-hint">暂未选择附魔</span>
+                                        </div>
+                                        <button class="btn-add-mini" onclick="window.openRecipeEnchantSelector()" style="margin-top:6px;">+ 添加附魔</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="save-recipe" class="btn-save">保存配方</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 导出 -->
+            <section id="export" class="section">
+                <h2>导出数据包</h2>
+                <p class="section-desc">预览并导出你的数据包</p>
+                
+                <div class="export-preview">
+                    <h3>数据包预览</h3>
+                    <div class="preview-info">
+                        <p><strong>名称：</strong><span id="preview-name">未设置</span></p>
+                        <p><strong>描述：</strong><span id="preview-desc">未设置</span></p>
+                        <p><strong>命名空间：</strong><span id="preview-namespace">未设置</span></p>
+                    </div>
+                    
+                    <div class="file-structure-preview">
+                        <h4>文件结构</h4>
+                        <pre id="structure-tree"></pre>
+                    </div>
+                    
+                    <div class="export-actions">
+                        <button id="export-zip" class="btn-export">导出为ZIP</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- 命令编辑器弹窗 -->
+        <div id="command-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="modal-header">
+                    <h3 id="modal-title">命令编辑器</h3>
+                </div>
+                <div class="modal-body" id="modal-body">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="modal-actions">
+                    <button id="modal-cancel" class="btn-cancel">取消</button>
+                    <button id="modal-add" class="btn-primary">添加命令</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入弹窗 -->
+        <div id="prompt-modal" class="modal">
+            <div class="modal-content prompt-modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="modal-header">
+                    <h3 id="prompt-modal-title">输入名称</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input type="text" id="prompt-modal-input" placeholder="请输入..." autocomplete="off">
+                        <span class="field-hint" id="prompt-modal-hint"></span>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="prompt-modal-cancel" class="btn-cancel">取消</button>
+                    <button id="prompt-modal-confirm" class="btn-primary">确认</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 确认弹窗 -->
+        <div id="confirm-modal" class="modal">
+            <div class="modal-content confirm-modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="modal-header">
+                    <h3>确认操作</h3>
+                </div>
+                <div class="modal-body">
+                    <div id="confirm-modal-message" class="confirm-message"></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirm-modal-cancel" class="btn-cancel">取消</button>
+                    <button id="confirm-modal-confirm" class="btn-delete">确认</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 物品选择器弹窗 -->
+        <div id="item-selector-modal" class="modal">
+            <div class="modal-content item-selector-content">
+                <span class="close-modal" onclick="closeItemSelector()">&times;</span>
+                <div class="modal-header">
+                    <h3>选择物品</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="item-search">
+                        <input type="text" id="item-search-input" placeholder="搜索物品..." oninput="filterItems()">
+                    </div>
+                    <div class="item-categories">
+                        <button class="category-btn active" onclick="filterByCategory('all', this)">全部</button>
+                        <button class="category-btn" onclick="filterByCategory('building', this)">建筑方块</button>
+                        <button class="category-btn" onclick="filterByCategory('decoration', this)">装饰</button>
+                        <button class="category-btn" onclick="filterByCategory('tools', this)">工具</button>
+                        <button class="category-btn" onclick="filterByCategory('combat', this)">战斗</button>
+                        <button class="category-btn" onclick="filterByCategory('food', this)">食物</button>
+                        <button class="category-btn" onclick="filterByCategory('materials', this)">材料</button>
+                        <button class="category-btn" onclick="filterByCategory('redstone', this)">红石</button>
+                        <button class="category-btn" onclick="filterByCategory('misc', this)">其他</button>
+                    </div>
+                    <div class="item-grid" id="item-grid">
+                        <!-- 动态生成 -->
+                    </div>
+                    <div class="custom-item-section">
+                        <div class="custom-item-divider"><span>或者手动输入自定义物品</span></div>
+                        <div class="custom-item-input-group">
+                            <input type="text" id="custom-item-input" placeholder="输入物品ID，例如：minecraft:custom_item" onkeydown="if(event.key==='Enter') selectCustomItem()">
+                            <button class="btn-custom-item" onclick="selectCustomItem()">添加</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeItemSelector()">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据选择器弹窗（方块/实体/桶通用） -->
+        <div id="data-selector-modal" class="modal">
+            <div class="modal-content item-selector-content">
+                <span class="close-modal" onclick="closeDataSelector()">&times;</span>
+                <div class="modal-header">
+                    <h3 id="data-selector-title">选择</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="item-search">
+                        <input type="text" id="data-selector-search" placeholder="搜索..." oninput="filterDataItems()">
+                    </div>
+                    <div id="data-selector-categories" class="item-categories"></div>
+                    <div class="item-grid" id="data-selector-grid"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeDataSelector()">取消</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 原版配方管理弹窗 -->
+        <div id="vanilla-recipe-modal" class="modal">
+            <div class="modal-content item-selector-content">
+                <span class="close-modal" onclick="closeVanillaRecipeModal()">&times;</span>
+                <div class="modal-header">
+                    <h3>管理原版配方</h3>
+                    <span style="font-size:13px;color:var(--mc-text-secondary);">选择要从游戏中移除的原版配方</span>
+                </div>
+                <div class="modal-body">
+                    <div class="item-search">
+                        <input type="text" id="vanilla-recipe-search" placeholder="搜索配方..." oninput="filterVanillaRecipes()">
+                    </div>
+                    <div class="vanilla-recipe-stats" id="vanilla-recipe-stats">
+                        <span>已选择: <strong id="vanilla-recipe-count">0</strong> 个配方</span>
+                        <button class="btn-sm" onclick="toggleAllVanillaRecipes(true)">全选</button>
+                        <button class="btn-sm" onclick="toggleAllVanillaRecipes(false)">取消全选</button>
+                    </div>
+                    <div class="vanilla-recipe-list" id="vanilla-recipe-list">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeVanillaRecipeModal()">取消</button>
+                    <button id="save-vanilla-recipes" class="btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>按照1.21.1的标准制作的，数据包函数等没有大改的其他版本也能用 </p>
+            <p style="margin-top:10px;font-size:0.85em;color:var(--mc-text-secondary);line-height:1.8;">
+                Minecraft 版权归 Mojang 所有，使用请参照 <a href="https://www.minecraft.net/zh-hans/usage-guidelines" target="_blank" style="color:var(--mc-primary-light);">Minecraft 使用准则</a>。<br>
+                物品图标使用了中文 Minecraft Wiki 的内容，以 <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" target="_blank" style="color:var(--mc-primary-light);">CC BY-NC-SA 3.0</a> 协议授权。<br>
+            </p>
+        </footer>
+    </div>
+    
+    <script type="module" src="main.js"></script>
+</body>
+</html>
