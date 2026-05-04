@@ -147,14 +147,14 @@ const ACTION_TYPES = {
                     const num = idx + 1;
                     const effectId = ef.id || 'minecraft:speed';
                     const amplifier = ef.level || 1;
-                    const duration = ef.duration || 30;
+                    const duration = (ef.duration || 30) * 20;
                     cmds.push(`execute if score @s func_rnd_ef_${counter} matches ${num} run effect give ${target2} ${effectId} ${duration} ${amplifier}`);
                 });
             } else {
                 effects.forEach(ef => {
                     const effectId = ef.id || 'minecraft:speed';
                     const amplifier = ef.level || 1;
-                    const duration = ef.duration || 30;
+                    const duration = (ef.duration || 30) * 20;
                     cmds.push(`effect give ${target2} ${effectId} ${duration} ${amplifier}`);
                 });
             }
