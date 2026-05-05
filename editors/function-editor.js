@@ -147,15 +147,19 @@ const ACTION_TYPES = {
                     const num = idx + 1;
                     const effectId = ef.id || 'minecraft:speed';
                     const amplifier = ef.level || 1;
-                    const duration = (ef.duration || 30) * 20;
-                    cmds.push(`execute if score @s func_rnd_ef_${counter} matches ${num} run effect give ${target2} ${effectId} ${duration} ${amplifier}`);
+                    const isInstant = effectId === 'minecraft:instant_health' || effectId === 'minecraft:instant_damage' || effectId === 'minecraft:saturation';
+                    const duration = ef.infinite ? 'infinite' : (isInstant ? (ef.duration || 30) * 20 : (ef.duration || 30));
+                    const hideParticles = ef.hideParticles ? ' true' : '';
+                    cmds.push(`execute if score @s func_rnd_ef_${counter} matches ${num} run effect give ${target2} ${effectId} ${duration} ${amplifier}${hideParticles}`);
                 });
             } else {
                 effects.forEach(ef => {
                     const effectId = ef.id || 'minecraft:speed';
                     const amplifier = ef.level || 1;
-                    const duration = (ef.duration || 30) * 20;
-                    cmds.push(`effect give ${target2} ${effectId} ${duration} ${amplifier}`);
+                    const isInstant = effectId === 'minecraft:instant_health' || effectId === 'minecraft:instant_damage' || effectId === 'minecraft:saturation';
+                    const duration = ef.infinite ? 'infinite' : (isInstant ? (ef.duration || 30) * 20 : (ef.duration || 30));
+                    const hideParticles = ef.hideParticles ? ' true' : '';
+                    cmds.push(`effect give ${target2} ${effectId} ${duration} ${amplifier}${hideParticles}`);
                 });
             }
             return cmds;
@@ -578,7 +582,9 @@ function renderActionConfig(action, index) {
                 const eName = getEffectDisplayName(ef.id);
                 const level = ef.level || 1;
                 const duration = ef.duration || 30;
-                return `<span class="custom-enchant-tag">${eName} Lv.${level} ${duration}秒<span class="effect-tag-remove" data-effect-id="${ef.id}" data-action-index="${index}">&times;</span></span>`;
+                const durText = ef.infinite ? '∞' : `${duration}秒`;
+                const hideText = ef.hideParticles ? ' (隐藏粒子)' : '';
+                return `<span class="custom-enchant-tag">${eName} Lv.${level} ${durText}${hideText}<span class="effect-tag-remove" data-effect-id="${ef.id}" data-action-index="${index}">&times;</span></span>`;
             }).join('');
             paramsHtml += `<div class="action-param" data-param="${param.id}"${showIfAttr}>
                 <label>${param.label}</label>
@@ -1342,6 +1348,8 @@ function openEffectSelectorModal(existingList, callback) {
                         const checked = existing ? 'checked' : '';
                         const level = existing ? existing.level : 1;
                         const duration = existing ? existing.duration : 30;
+                        const infinite = existing ? existing.infinite : false;
+                        const hideParticles = existing ? existing.hideParticles : false;
                         return `
                             <div class="enchant-item" data-id="${effect.id}" style="border-bottom:1px solid var(--mc-border);">
                                 <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;">
@@ -1350,8 +1358,14 @@ function openEffectSelectorModal(existingList, callback) {
                                     <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">等级</span>
                                     <input type="number" class="effect-level-input" value="${level}" min="1" max="255" style="width:55px;padding:4px;border:1px solid #475569;border-radius:4px;text-align:center;background:rgba(15,23,42,0.6);color:#f1f5f9;" ${checked ? '' : 'disabled'}>
                                     <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">时长</span>
-                                    <input type="number" class="effect-duration-input" value="${duration}" min="1" max="9999" style="width:60px;padding:4px;border:1px solid #475569;border-radius:4px;text-align:center;background:rgba(15,23,42,0.6);color:#f1f5f9;" ${checked ? '' : 'disabled'}>
+                                    <input type="number" class="effect-duration-input" value="${duration}" min="1" max="9999" style="width:60px;padding:4px;border:1px solid #475569;border-radius:4px;text-align:center;background:rgba(15,23,42,0.6);color:#f1f5f9;" ${checked && !infinite ? '' : 'disabled'}>
                                     <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">秒</span>
+                                    <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;color:#fbbf24;white-space:nowrap;">
+                                        <input type="checkbox" class="effect-infinite-checkbox" ${infinite ? 'checked' : ''} ${checked ? '' : 'disabled'}>无限
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;color:#60a5fa;white-space:nowrap;">
+                                        <input type="checkbox" class="effect-hide-checkbox" ${hideParticles ? 'checked' : ''} ${checked ? '' : 'disabled'}>隐藏粒子
+                                    </label>
                                 </label>
                             </div>
                         `;
@@ -1376,7 +1390,7 @@ function openEffectSelectorModal(existingList, callback) {
     document.body.appendChild(modal);
     modal.classList.add('active');
 
-    const selectedEffects = existingList.map(ef => ({ id: ef.id, level: ef.level, duration: ef.duration }));
+    const selectedEffects = existingList.map(ef => ({ id: ef.id, level: ef.level, duration: ef.duration, infinite: ef.infinite || false, hideParticles: ef.hideParticles || false }));
 
     function updateCount() {
         const countEl = modal.querySelector('#func-selected-count');
@@ -1389,20 +1403,52 @@ function openEffectSelectorModal(existingList, callback) {
             const label = this.closest('.checkbox-label');
             const levelInput = label.querySelector('.effect-level-input');
             const durationInput = label.querySelector('.effect-duration-input');
+            const infiniteCheckbox = label.querySelector('.effect-infinite-checkbox');
+            const hideCheckbox = label.querySelector('.effect-hide-checkbox');
             levelInput.disabled = !this.checked;
-            durationInput.disabled = !this.checked;
+            durationInput.disabled = !this.checked || infiniteCheckbox.checked;
+            infiniteCheckbox.disabled = !this.checked;
+            hideCheckbox.disabled = !this.checked;
             if (!this.checked) {
                 const idx = selectedEffects.findIndex(ef => ef.id === id);
                 if (idx > -1) selectedEffects.splice(idx, 1);
                 levelInput.value = 1;
                 durationInput.value = 30;
+                infiniteCheckbox.checked = false;
+                hideCheckbox.checked = false;
             } else {
                 if (!selectedEffects.find(ef => ef.id === id)) {
-                    selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                    selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30, infinite: false, hideParticles: false });
                 }
             }
             updateCount();
             updateSelectAllEffectsBtn();
+        });
+    });
+
+    modal.querySelectorAll('.effect-infinite-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const id = this.closest('.checkbox-label').querySelector('.effect-checkbox')?.dataset.id;
+            const label = this.closest('.checkbox-label');
+            const durationInput = label.querySelector('.effect-duration-input');
+            durationInput.disabled = this.checked;
+            if (id) {
+                const ef = selectedEffects.find(e => e.id === id);
+                if (ef) {
+                    ef.infinite = this.checked;
+                    if (this.checked) durationInput.value = 30;
+                }
+            }
+        });
+    });
+
+    modal.querySelectorAll('.effect-hide-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const id = this.closest('.checkbox-label').querySelector('.effect-checkbox')?.dataset.id;
+            if (id) {
+                const ef = selectedEffects.find(e => e.id === id);
+                if (ef) ef.hideParticles = this.checked;
+            }
         });
     });
 
@@ -1414,7 +1460,9 @@ function openEffectSelectorModal(existingList, callback) {
                 if (ef) ef.level = parseInt(this.value) || 1;
                 else {
                     const durationInput = this.closest('.checkbox-label').querySelector('.effect-duration-input');
-                    selectedEffects.push({ id, level: parseInt(this.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                    const infiniteCheckbox = this.closest('.checkbox-label').querySelector('.effect-infinite-checkbox');
+                    const hideCheckbox = this.closest('.checkbox-label').querySelector('.effect-hide-checkbox');
+                    selectedEffects.push({ id, level: parseInt(this.value) || 1, duration: parseInt(durationInput.value) || 30, infinite: infiniteCheckbox.checked, hideParticles: hideCheckbox.checked });
                 }
             }
         });
@@ -1435,7 +1483,9 @@ function openEffectSelectorModal(existingList, callback) {
                 if (ef) ef.duration = parseInt(this.value) || 30;
                 else {
                     const levelInput = this.closest('.checkbox-label').querySelector('.effect-level-input');
-                    selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(this.value) || 30 });
+                    const infiniteCheckbox = this.closest('.checkbox-label').querySelector('.effect-infinite-checkbox');
+                    const hideCheckbox = this.closest('.checkbox-label').querySelector('.effect-hide-checkbox');
+                    selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(this.value) || 30, infinite: infiniteCheckbox.checked, hideParticles: hideCheckbox.checked });
                 }
             }
         });
@@ -1490,18 +1540,26 @@ function openEffectSelectorModal(existingList, callback) {
                 const label = item.querySelector('.checkbox-label');
                 const levelInput = label.querySelector('.effect-level-input');
                 const durationInput = label.querySelector('.effect-duration-input');
+                const infiniteCheckbox = label.querySelector('.effect-infinite-checkbox');
+                const hideCheckbox = label.querySelector('.effect-hide-checkbox');
                 if (allVisibleChecked) {
                     cb.checked = false;
                     levelInput.disabled = true;
                     durationInput.disabled = true;
+                    infiniteCheckbox.disabled = true;
+                    infiniteCheckbox.checked = false;
+                    hideCheckbox.disabled = true;
+                    hideCheckbox.checked = false;
                     const idx = selectedEffects.findIndex(ef => ef.id === id);
                     if (idx > -1) selectedEffects.splice(idx, 1);
                 } else {
                     cb.checked = true;
                     levelInput.disabled = false;
                     durationInput.disabled = false;
+                    infiniteCheckbox.disabled = false;
+                    hideCheckbox.disabled = false;
                     if (!selectedEffects.find(ef => ef.id === id)) {
-                        selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                        selectedEffects.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30, infinite: false, hideParticles: false });
                     }
                 }
             });
@@ -1515,7 +1573,7 @@ function openEffectSelectorModal(existingList, callback) {
         const val = customInput.value.trim();
         if (val) {
             if (!selectedEffects.find(ef => ef.id === val)) {
-                selectedEffects.push({ id: val, level: 1, duration: 30 });
+                selectedEffects.push({ id: val, level: 1, duration: 30, infinite: false, hideParticles: false });
                 updateCount();
                 updateSelectAllEffectsBtn();
                 modal.querySelectorAll('.effect-checkbox').forEach(cb => {
@@ -1533,7 +1591,7 @@ function openEffectSelectorModal(existingList, callback) {
 
     modal.querySelector('#func-selector-confirm').addEventListener('click', function() {
         existingList.length = 0;
-        selectedEffects.forEach(ef => existingList.push({ id: ef.id, level: ef.level, duration: ef.duration }));
+        selectedEffects.forEach(ef => existingList.push({ id: ef.id, level: ef.level, duration: ef.duration, infinite: ef.infinite, hideParticles: ef.hideParticles }));
         callback();
         modal.remove();
     });

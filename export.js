@@ -26,6 +26,7 @@ const POTION_TO_EFFECT_ID = {
     'minecraft:weaving': 'minecraft:weaving',
     'minecraft:oozing': 'minecraft:oozing',
     'minecraft:infested': 'minecraft:infested',
+    'minecraft:resistance': 'minecraft:resistance',
 };
 
 // 需要拆分为多个效果的特殊药水
@@ -2092,6 +2093,39 @@ function buildResultComponents(resultComponents) {
         components['minecraft:enchantments'] = {
             levels: levels
         };
+    }
+
+    if (resultComponents.potionContents && Array.isArray(resultComponents.potionContents) && resultComponents.potionContents.length > 0) {
+        const customEffects = [];
+        resultComponents.potionContents.forEach(p => {
+            const potionId = p.id;
+            const level = p.level || 1;
+            const durationSec = p.duration || 30;
+
+            if (POTION_MULTI_EFFECT[potionId]) {
+                POTION_MULTI_EFFECT[potionId].forEach(effectId => {
+                    customEffects.push({
+                        id: effectId,
+                        amplifier: Math.max(0, level - 1),
+                        duration: durationSec * 20
+                    });
+                });
+                return;
+            }
+
+            const effectId = POTION_TO_EFFECT_ID[potionId] || potionId;
+            customEffects.push({
+                id: effectId,
+                amplifier: Math.max(0, level - 1),
+                duration: durationSec * 20
+            });
+        });
+
+        if (customEffects.length > 0) {
+            components['minecraft:potion_contents'] = {
+                custom_effects: customEffects
+            };
+        }
     }
 
     return Object.keys(components).length > 0 ? components : null;

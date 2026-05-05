@@ -1,5 +1,5 @@
 import { datapackData } from '../data/data-core.js';
-import { PRESET_ENCHANTMENTS } from '../data/data-loot.js';
+import { PRESET_ENCHANTMENTS, PRESET_POTIONS } from '../data/data-loot.js';
 import { showNotification, updateItemPreview } from '../utils.js';
 
 export let vanillaRecipes = [];
@@ -75,7 +75,7 @@ export function initRecipeEditor() {
                             group: '',
                             category: 'misc',
                             showNotification: true,
-                            unlockType: 'craft',
+                            unlockType: 'material',
                             resultComponents: {}
                         };
                         addRecipeToList(recipeId);
@@ -189,7 +189,7 @@ export function initRecipeEditor() {
                 group: document.getElementById('recipe-group')?.value || '',
                 category: document.getElementById('recipe-category')?.value || 'misc',
                 showNotification: document.getElementById('recipe-show-notification')?.checked !== false,
-                unlockType: document.getElementById('recipe-unlock-type')?.value || 'craft',
+                unlockType: document.getElementById('recipe-unlock-type')?.value || 'material',
                 resultComponents: collectResultComponents()
             };
             showNotification('配方已保存！', 'success');
@@ -217,7 +217,7 @@ function createDefaultRecipe() {
             group: '',
             category: 'misc',
             showNotification: true,
-            unlockType: 'craft',
+            unlockType: 'material',
             resultComponents: {}
         };
     }
@@ -312,7 +312,7 @@ export function resetRecipeEditor() {
     if (groupEl) groupEl.value = '';
     if (categoryEl) categoryEl.value = 'misc';
     if (showNotificationEl) showNotificationEl.checked = true;
-    if (unlockTypeEl) unlockTypeEl.value = 'craft';
+    if (unlockTypeEl) unlockTypeEl.value = 'material';
     document.querySelectorAll('.grid-cell-input').forEach(cell => {
         cell.value = '';
         updateItemPreview(cell);
@@ -328,6 +328,8 @@ export function resetRecipeEditor() {
     updateRecipeEditorVisibility();
     window._recipeCustomEnchants = [];
     renderRecipeEnchantTags();
+    window._recipeCustomPotions = [];
+    renderRecipePotionTags();
     loadResultComponents(null);
 }
 
@@ -392,6 +394,15 @@ function collectResultComponents() {
         }));
     }
 
+    const potions = window._recipeCustomPotions || [];
+    if (potions.length > 0) {
+        components.potionContents = potions.map(p => ({
+            id: p.id,
+            level: p.level,
+            duration: p.duration
+        }));
+    }
+
     return Object.keys(components).length > 0 ? components : {};
 }
 
@@ -414,6 +425,8 @@ function loadResultComponents(components) {
         if (glintCb) glintCb.checked = false;
         window._recipeCustomEnchants = [];
         renderRecipeEnchantTags();
+        window._recipeCustomPotions = [];
+        renderRecipePotionTags();
         return;
     }
 
@@ -477,6 +490,18 @@ function loadResultComponents(components) {
         window._recipeCustomEnchants = [];
     }
     renderRecipeEnchantTags();
+
+    // 加载药水效果
+    if (components.potionContents && Array.isArray(components.potionContents)) {
+        window._recipeCustomPotions = components.potionContents.map(p => ({
+            id: p.id,
+            level: p.level || 1,
+            duration: p.duration || 30
+        }));
+    } else {
+        window._recipeCustomPotions = [];
+    }
+    renderRecipePotionTags();
 }
 
 function renderRecipeEnchantTags() {
@@ -586,6 +611,263 @@ window.openRecipeEnchantSelector = function() {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
 
+// ===== 配方药水选择功能 =====
+
+function getPotionDisplayName(potionId) {
+    if (!potionId) return '';
+    const found = PRESET_POTIONS.find(p => p.id === potionId);
+    return found ? found.name : potionId.split(':').pop() || potionId;
+}
+
+function renderRecipePotionTags() {
+    const container = document.getElementById('result-potion-tags');
+    if (!container) return;
+    const potions = window._recipeCustomPotions || [];
+    if (potions.length === 0) {
+        container.innerHTML = '<span class="field-hint">暂未选择药水</span>';
+        return;
+    }
+    container.innerHTML = potions.map(p => {
+        const displayName = getPotionDisplayName(p.id);
+        const durationText = p.duration != null ? ` ${p.duration}秒` : '';
+        return `<span class="custom-enchant-tag">${displayName} Lv.${p.level}${durationText}<span class="potion-tag-remove" data-potion-id="${p.id}">&times;</span></span>`;
+    }).join('');
+
+    container.querySelectorAll('.potion-tag-remove').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.potionId;
+            window._recipeCustomPotions = (window._recipeCustomPotions || []).filter(p => p.id !== id);
+            renderRecipePotionTags();
+        });
+    });
+}
+
+window.openRecipePotionSelector = function() {
+    const existing = document.getElementById('recipe-potion-selector-modal');
+    if (existing) existing.remove();
+
+    const currentPotions = (window._recipeCustomPotions || []).map(p => ({ id: p.id, level: p.level, duration: p.duration }));
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'recipe-potion-selector-modal';
+    modal.innerHTML = `
+        <div class="modal-content item-selector-content" style="max-width: 680px;">
+            <span class="close-modal" onclick="document.getElementById('recipe-potion-selector-modal').remove()">&times;</span>
+            <div class="modal-header">
+                <h3>选择药水效果（可多选，自定义等级与时长）</h3>
+                <p class="field-hint" style="color:#f59e0b;font-weight:600;margin-top:4px;">⚠ 等级最高 255 级，时长最长 9999 秒</p>
+            </div>
+            <div class="modal-body">
+                <div class="item-search">
+                    <input type="text" id="recipe-potion-search-input" placeholder="搜索药水...">
+                </div>
+                <div id="recipe-potion-selector-list" style="max-height:350px;overflow-y:auto;">
+                    ${PRESET_POTIONS.map(p => {
+                        const existing = currentPotions.find(ef => ef.id === p.id);
+                        const checked = existing ? 'checked' : '';
+                        const level = existing ? existing.level : 1;
+                        const duration = existing ? existing.duration : 30;
+                        return `
+                            <div class="enchant-item" data-id="${p.id}" style="border-bottom:1px solid var(--mc-border);">
+                                <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;">
+                                    <input type="checkbox" class="recipe-potion-checkbox" data-id="${p.id}" ${checked}>
+                                    <span style="flex:1;min-width:80px;">${p.name}</span>
+                                    <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">等级</span>
+                                    <input type="number" class="recipe-potion-level-input" value="${level}" min="1" max="255" style="width:55px;padding:4px;border:1px solid #475569;border-radius:4px;text-align:center;background:rgba(15,23,42,0.6);color:#f1f5f9;" ${checked ? '' : 'disabled'}>
+                                    <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">时长</span>
+                                    <input type="number" class="recipe-potion-duration-input" value="${duration}" min="1" max="9999" style="width:60px;padding:4px;border:1px solid #475569;border-radius:4px;text-align:center;background:rgba(15,23,42,0.6);color:#f1f5f9;" ${checked ? '' : 'disabled'}>
+                                    <span style="color:#94a3b8;font-size:12px;white-space:nowrap;">秒</span>
+                                </label>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div class="custom-item-section" style="margin-top:12px;">
+                    <div class="custom-item-divider"><span>或者手动输入自定义药水效果ID</span></div>
+                    <div class="custom-item-input-group">
+                        <input type="text" id="recipe-potion-custom-input" placeholder="例如: minecraft:haste">
+                        <button id="recipe-potion-custom-add" class="btn-custom-item">添加</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <span id="recipe-potion-selected-count" style="color:var(--mc-text-secondary);font-size:13px;margin-right:auto;">已选择 ${currentPotions.length} 个</span>
+                <button id="recipe-potion-select-all-btn" class="btn-add-mini">☑ 全选当前显示</button>
+                <button class="btn-cancel" onclick="document.getElementById('recipe-potion-selector-modal').remove()">取消</button>
+                <button id="recipe-potion-confirm-btn" class="btn-primary">确认</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.classList.add('active');
+
+    const selectedPotions = currentPotions.map(p => ({ id: p.id, level: p.level, duration: p.duration }));
+
+    function updateCount() {
+        const countEl = modal.querySelector('#recipe-potion-selected-count');
+        if (countEl) countEl.textContent = '已选择 ' + selectedPotions.length + ' 个';
+    }
+
+    modal.querySelectorAll('.recipe-potion-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const id = this.dataset.id;
+            const label = this.closest('.checkbox-label');
+            const levelInput = label.querySelector('.recipe-potion-level-input');
+            const durationInput = label.querySelector('.recipe-potion-duration-input');
+            levelInput.disabled = !this.checked;
+            durationInput.disabled = !this.checked;
+            if (!this.checked) {
+                const idx = selectedPotions.findIndex(p => p.id === id);
+                if (idx > -1) selectedPotions.splice(idx, 1);
+                levelInput.value = 1;
+                durationInput.value = 30;
+            } else {
+                if (!selectedPotions.find(p => p.id === id)) {
+                    selectedPotions.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                }
+            }
+            updateCount();
+            updateSelectAllBtn();
+        });
+    });
+
+    modal.querySelectorAll('.recipe-potion-level-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const id = this.closest('.checkbox-label').querySelector('.recipe-potion-checkbox')?.dataset.id;
+            if (id) {
+                const p = selectedPotions.find(e => e.id === id);
+                if (p) p.level = parseInt(this.value) || 1;
+                else {
+                    const durationInput = this.closest('.checkbox-label').querySelector('.recipe-potion-duration-input');
+                    selectedPotions.push({ id, level: parseInt(this.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                }
+            }
+        });
+        input.addEventListener('input', function() {
+            const id = this.closest('.checkbox-label').querySelector('.recipe-potion-checkbox')?.dataset.id;
+            if (id) {
+                const p = selectedPotions.find(e => e.id === id);
+                if (p) p.level = parseInt(this.value) || 1;
+            }
+        });
+    });
+
+    modal.querySelectorAll('.recipe-potion-duration-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const id = this.closest('.checkbox-label').querySelector('.recipe-potion-checkbox')?.dataset.id;
+            if (id) {
+                const p = selectedPotions.find(e => e.id === id);
+                if (p) p.duration = parseInt(this.value) || 30;
+                else {
+                    const levelInput = this.closest('.checkbox-label').querySelector('.recipe-potion-level-input');
+                    selectedPotions.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(this.value) || 30 });
+                }
+            }
+        });
+        input.addEventListener('input', function() {
+            const id = this.closest('.checkbox-label').querySelector('.recipe-potion-checkbox')?.dataset.id;
+            if (id) {
+                const p = selectedPotions.find(e => e.id === id);
+                if (p) p.duration = parseInt(this.value) || 30;
+            }
+        });
+    });
+
+    const searchInput = modal.querySelector('#recipe-potion-search-input');
+    searchInput.addEventListener('input', function() {
+        const q = this.value.toLowerCase();
+        modal.querySelectorAll('.enchant-item').forEach(item => {
+            const name = item.querySelector('.checkbox-label span').textContent.toLowerCase();
+            const id = item.dataset.id.toLowerCase();
+            item.style.display = (name.includes(q) || id.includes(q)) ? '' : 'none';
+        });
+        updateSelectAllBtn();
+    });
+
+    function updateSelectAllBtn() {
+        const btn = modal.querySelector('#recipe-potion-select-all-btn');
+        if (!btn) return;
+        const visibleItems = [];
+        modal.querySelectorAll('.enchant-item').forEach(item => {
+            if (item.style.display !== 'none') visibleItems.push(item);
+        });
+        const allVisibleChecked = visibleItems.length > 0 && visibleItems.every(item => {
+            const cb = item.querySelector('.recipe-potion-checkbox');
+            return cb && cb.checked;
+        });
+        btn.textContent = allVisibleChecked ? '☐ 取消全选' : '☑ 全选当前显示';
+    }
+
+    const selectAllBtn = modal.querySelector('#recipe-potion-select-all-btn');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function() {
+            const visibleItems = [];
+            modal.querySelectorAll('.enchant-item').forEach(item => {
+                if (item.style.display !== 'none') visibleItems.push(item);
+            });
+            const allVisibleChecked = visibleItems.length > 0 && visibleItems.every(item => {
+                const cb = item.querySelector('.recipe-potion-checkbox');
+                return cb && cb.checked;
+            });
+            visibleItems.forEach(item => {
+                const cb = item.querySelector('.recipe-potion-checkbox');
+                const id = cb.dataset.id;
+                const label = item.querySelector('.checkbox-label');
+                const levelInput = label.querySelector('.recipe-potion-level-input');
+                const durationInput = label.querySelector('.recipe-potion-duration-input');
+                if (allVisibleChecked) {
+                    cb.checked = false;
+                    levelInput.disabled = true;
+                    durationInput.disabled = true;
+                    const idx = selectedPotions.findIndex(p => p.id === id);
+                    if (idx > -1) selectedPotions.splice(idx, 1);
+                } else {
+                    cb.checked = true;
+                    levelInput.disabled = false;
+                    durationInput.disabled = false;
+                    if (!selectedPotions.find(p => p.id === id)) {
+                        selectedPotions.push({ id, level: parseInt(levelInput.value) || 1, duration: parseInt(durationInput.value) || 30 });
+                    }
+                }
+            });
+            updateCount();
+            this.textContent = allVisibleChecked ? '☑ 全选当前显示' : '☐ 取消全选';
+        });
+    }
+
+    const customInput = modal.querySelector('#recipe-potion-custom-input');
+    modal.querySelector('#recipe-potion-custom-add').addEventListener('click', function() {
+        const val = customInput.value.trim();
+        if (val) {
+            if (!selectedPotions.find(p => p.id === val)) {
+                selectedPotions.push({ id: val, level: 1, duration: 30 });
+                updateCount();
+                updateSelectAllBtn();
+                modal.querySelectorAll('.recipe-potion-checkbox').forEach(cb => {
+                    if (cb.dataset.id === val) cb.checked = true;
+                });
+            }
+            customInput.value = '';
+        }
+    });
+    customInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            modal.querySelector('#recipe-potion-custom-add').click();
+        }
+    });
+
+    modal.querySelector('#recipe-potion-confirm-btn').addEventListener('click', function() {
+        window._recipeCustomPotions = selectedPotions.map(p => ({ id: p.id, level: p.level, duration: p.duration }));
+        renderRecipePotionTags();
+        modal.remove();
+        showNotification('已选择 ' + window._recipeCustomPotions.length + ' 个药水效果', 'success');
+    });
+
+    modal.querySelector('.close-modal').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
 export function loadRecipeData(recipeId) {
     const recipe = datapackData.recipes[recipeId];
     if (recipe) {
@@ -613,7 +895,7 @@ export function loadRecipeData(recipeId) {
         if (groupEl) groupEl.value = recipe.group || '';
         if (categoryEl) categoryEl.value = recipe.category || 'misc';
         if (showNotificationEl) showNotificationEl.checked = recipe.showNotification !== false;
-        if (unlockTypeEl) unlockTypeEl.value = recipe.unlockType || 'craft';
+        if (unlockTypeEl) unlockTypeEl.value = recipe.unlockType || 'material';
 
         updateRecipeEditorVisibility();
 

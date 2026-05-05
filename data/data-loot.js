@@ -155,6 +155,7 @@ export const PRESET_POTIONS = [
     { id: 'minecraft:weaving', name: '盘丝' },
     { id: 'minecraft:oozing', name: '渗浆' },
     { id: 'minecraft:infested', name: '寄生' },
+    { id: 'minecraft:resistance', name: '抗性提升' },
 ];
 
 // 预设 gameplay 战利品表

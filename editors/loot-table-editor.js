@@ -50,6 +50,11 @@ export function initLootTableEditor() {
 
     document.getElementById('add-loot-drop').addEventListener('click', addNewDrop);
 
+    const importBtn = document.getElementById('import-loot-drops');
+    if (importBtn) {
+        importBtn.addEventListener('click', openImportDropsModal);
+    }
+
     window.openBlockTargetSelector = openBlockTargetSelector;
     window.openChestTargetSelector = openChestTargetSelector;
     window.removeTargetTag = removeTargetTag;
@@ -719,12 +724,25 @@ function addNewDrop() {
         randomLevelMin: 1,
         randomLevelMax: 10
     });
-    renderDrops();
+    const newIndex = (loot.drops || []).length - 1;
+    renderDrops(true, newIndex);
     showNotification('已添加新掉落物品，请点击选择物品', 'success');
 }
 
-function renderDrops() {
+function renderDrops(forceExpandNew, expandIndex) {
     const container = document.getElementById('loot-drops-container');
+
+    const expandedIndices = new Set();
+    if (forceExpandNew && expandIndex !== undefined) {
+        expandedIndices.add(expandIndex);
+    } else {
+        container.querySelectorAll('.loot-drop-card').forEach(card => {
+            if (!card.classList.contains('collapsed')) {
+                expandedIndices.add(parseInt(card.dataset.dropIndex));
+            }
+        });
+    }
+
     container.innerHTML = '';
 
     if (!window.currentLootTable || !datapackData.lootTables[window.currentLootTable]) return;
@@ -739,15 +757,20 @@ function renderDrops() {
 
     drops.forEach((drop, index) => {
         const card = document.createElement('div');
-        card.className = 'loot-drop-card';
+        const isExpanded = expandedIndices.has(index);
+        card.className = 'loot-drop-card' + (isExpanded ? '' : ' collapsed');
         card.setAttribute('data-drop-index', index);
 
         const itemPreview = getItemPreview(drop.item);
         const enchantHtml = getEnchantHtml(drop, index);
+        const arrowCollapsed = isExpanded ? '' : ' collapsed';
 
         card.innerHTML = `
             <div class="drop-card-header">
-                <span class="drop-item-preview">${itemPreview.icon} ${itemPreview.name}</span>
+                <div class="drop-header-left">
+                    <span class="drop-collapse-arrow${arrowCollapsed}">&#9660;</span>
+                    <span class="drop-item-preview">${itemPreview.icon} <span class="item-preview-text">${itemPreview.name}</span></span>
+                </div>
                 <span class="drop-card-index">#${index + 1}</span>
             </div>
             <div class="drop-card-body">
@@ -805,6 +828,15 @@ function renderDrops() {
         `;
 
         container.appendChild(card);
+
+        card.querySelector('.drop-card-header').addEventListener('click', function(e) {
+            if (e.target.closest('.btn-danger') || e.target.closest('.item-select-btn')) return;
+            const isCollapsed = card.classList.toggle('collapsed');
+            const arrow = this.querySelector('.drop-collapse-arrow');
+            if (arrow) {
+                arrow.classList.toggle('collapsed', isCollapsed);
+            }
+        });
 
         card.querySelectorAll('.drop-min-count, .drop-max-count').forEach(input => {
             input.addEventListener('change', function() {
@@ -1450,5 +1482,197 @@ window.openPotionSelector = function(dropIndex) {
     modal.querySelector('.close-modal').onclick = () => modal.remove();
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
+
+function deepCloneDrop(drop) {
+    return {
+        item: drop.item || '',
+        minCount: drop.minCount || 1,
+        maxCount: drop.maxCount || 1,
+        weight: drop.weight || 100,
+        enchantType: drop.enchantType || 'none',
+        enchantMin: drop.enchantMin || 5,
+        enchantMax: drop.enchantMax || 20,
+        treasure: drop.treasure || false,
+        potionIds: (drop.potionIds || []).map(p => typeof p === 'string' ? p : { ...p }),
+        customEnchants: (drop.customEnchants || []).map(e => ({ ...e })),
+        multiEnchant: drop.multiEnchant || false,
+        multiEnchantMin: drop.multiEnchantMin || 1,
+        multiEnchantMax: drop.multiEnchantMax || 3,
+        exceedVanilla: drop.exceedVanilla || false,
+        allowIncompatible: drop.allowIncompatible || false,
+        randomLevelMin: drop.randomLevelMin || 1,
+        randomLevelMax: drop.randomLevelMax || 10
+    };
+}
+
+function openImportDropsModal() {
+    if (!window.currentLootTable) {
+        showNotification('请先选择或创建一个战利品表！', 'error');
+        return;
+    }
+
+    const currentId = window.currentLootTable;
+    const otherTables = Object.keys(datapackData.lootTables).filter(id => id !== currentId);
+    if (otherTables.length === 0) {
+        showNotification('没有其他战利品表可以导入！', 'warning');
+        return;
+    }
+
+    const existing = document.getElementById('import-drops-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'import-drops-modal';
+    modal.innerHTML = `
+        <div class="modal-content item-selector-content" style="max-width: 700px;">
+            <span class="close-modal" onclick="document.getElementById('import-drops-modal').remove()">&times;</span>
+            <div class="modal-header">
+                <h3>从其他战利品表导入掉落物</h3>
+            </div>
+            <div class="modal-body">
+                <p class="field-hint" style="margin-bottom:16px;color:var(--mc-accent);font-weight:500;">
+                    选择要导入的战利品表，然后勾选需要复制的掉落物
+                </p>
+                <div id="import-tables-list" style="max-height:450px;overflow-y:auto;">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <span id="import-selected-count" style="color:var(--mc-text-secondary);font-size:13px;margin-right:auto;">已选择 0 个掉落物</span>
+                <button class="btn-cancel" onclick="document.getElementById('import-drops-modal').remove()">取消</button>
+                <button id="import-confirm-btn" class="btn-primary">导入选中掉落物</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.classList.add('active');
+
+    const selectedDrops = [];
+
+    function updateImportCount() {
+        const countEl = modal.querySelector('#import-selected-count');
+        if (countEl) countEl.textContent = '已选择 ' + selectedDrops.length + ' 个掉落物';
+    }
+
+    function getSelectionKey(tableId, dropIndex) {
+        return tableId + '|' + dropIndex;
+    }
+
+    function renderImportTables(searchQuery) {
+        const listContainer = modal.querySelector('#import-tables-list');
+        listContainer.innerHTML = '';
+        updateImportCount();
+
+        const q = searchQuery ? searchQuery.toLowerCase() : '';
+
+        otherTables.forEach(tableId => {
+            const table = datapackData.lootTables[tableId];
+            if (!table || !table.drops || table.drops.length === 0) return;
+
+            const drops = table.drops;
+            const dropsToShow = q ? drops.filter(d => {
+                const itemName = getItemPreview(d.item).name.toLowerCase();
+                return itemName.includes(q) || d.item.toLowerCase().includes(q);
+            }) : drops;
+
+            if (dropsToShow.length === 0) return;
+
+            const section = document.createElement('div');
+            section.style.marginBottom = '16px';
+            section.style.border = '1px solid var(--mc-border)';
+            section.style.borderRadius = 'var(--radius-md)';
+            section.style.overflow = 'hidden';
+
+            const typeIcons = { block: '⛏️', entity: '👾', chest: '📦', gameplay: '🎮', none: '📜' };
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(59,130,246,0.1);border-bottom:1px solid var(--mc-border);font-weight:600;font-size:14px;';
+            header.innerHTML = `
+                <span>${typeIcons[table.type] || '💎'} ${table.name || tableId}</span>
+                <span style="color:var(--mc-text-secondary);font-size:12px;font-weight:normal;">${dropsToShow.length} 个掉落物</span>
+            `;
+            section.appendChild(header);
+
+            dropsToShow.forEach((drop, idx) => {
+                const originalIndex = drops.indexOf(drop);
+                const itemPreview = getItemPreview(drop.item);
+                const itemRow = document.createElement('div');
+                itemRow.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background 0.15s;border-bottom:1px solid rgba(51,65,85,0.3);';
+                itemRow.innerHTML = `
+                    <input type="checkbox" class="import-drop-checkbox" data-table-id="${tableId}" data-drop-index="${originalIndex}" style="width:18px;height:18px;accent-color:var(--mc-primary-light);cursor:pointer;flex-shrink:0;">
+                    <span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+                        ${itemPreview.icon}
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemPreview.name}</span>
+                    </span>
+                    <span style="color:var(--mc-text-secondary);font-size:12px;flex-shrink:0;">
+                        x${drop.minCount}~${drop.maxCount} | ${drop.weight}%
+                    </span>
+                `;
+                const checkbox = itemRow.querySelector('.import-drop-checkbox');
+                const key = getSelectionKey(tableId, originalIndex);
+                if (selectedDrops.some(s => getSelectionKey(s.tableId, s.dropIndex) === key)) {
+                    checkbox.checked = true;
+                }
+                checkbox.addEventListener('change', function() {
+                    const tableId = this.dataset.tableId;
+                    const dropIndex = parseInt(this.dataset.dropIndex);
+                    const table = datapackData.lootTables[tableId];
+                    if (this.checked) {
+                        if (!selectedDrops.find(s => s.tableId === tableId && s.dropIndex === dropIndex)) {
+                            selectedDrops.push({
+                                tableId: tableId,
+                                dropIndex: dropIndex,
+                                drop: deepCloneDrop(table.drops[dropIndex])
+                            });
+                        }
+                    } else {
+                        const pos = selectedDrops.findIndex(s => s.tableId === tableId && s.dropIndex === dropIndex);
+                        if (pos > -1) selectedDrops.splice(pos, 1);
+                    }
+                    updateImportCount();
+                });
+                if (idx === dropsToShow.length - 1) {
+                    itemRow.style.borderBottom = 'none';
+                }
+                section.appendChild(itemRow);
+            });
+
+            listContainer.appendChild(section);
+        });
+
+        if (listContainer.children.length === 0) {
+            listContainer.innerHTML = '<div class="empty-hint" style="padding:20px;">没有找到匹配的掉落物</div>';
+        }
+    }
+
+    renderImportTables('');
+
+    const searchInput = document.createElement('div');
+    searchInput.style.marginBottom = '12px';
+    searchInput.innerHTML = '<input type="text" id="import-search-input" placeholder="搜索掉落物品名称..." style="width:100%;padding:10px 14px;border:1.5px solid var(--mc-border);border-radius:var(--radius-sm);font-size:13px;background:rgba(15,23,42,0.6);color:var(--mc-text);">';
+    const listContainer = modal.querySelector('#import-tables-list');
+    listContainer.parentNode.insertBefore(searchInput, listContainer);
+
+    modal.querySelector('#import-search-input').addEventListener('input', function() {
+        renderImportTables(this.value);
+    });
+
+    modal.querySelector('#import-confirm-btn').addEventListener('click', function() {
+        if (selectedDrops.length === 0) {
+            showNotification('请至少选择一个掉落物进行导入！', 'warning');
+            return;
+        }
+        const currentLoot = datapackData.lootTables[window.currentLootTable];
+        if (!currentLoot.drops) currentLoot.drops = [];
+        selectedDrops.forEach(s => {
+            currentLoot.drops.push(deepCloneDrop(s.drop));
+        });
+        modal.remove();
+        renderDrops();
+        showNotification('成功导入 ' + selectedDrops.length + ' 个掉落物！', 'success');
+    });
+
+    modal.querySelector('.close-modal').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
 
 export { saveCurrentLootTable };
